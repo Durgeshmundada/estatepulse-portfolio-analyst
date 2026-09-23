@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: astra-portfolio-analyst
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/ready
+    disk:
+      name: portfolio-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DEMO_ACCESS_CODE
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+
