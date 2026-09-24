@@ -1,0 +1,15 @@
+[project]
+name = "estatepulse-portfolio-analyst"
+version = "0.2.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi>=0.117,<1",
+  "sqlalchemy>=2.0,<3",
+  "pydantic-settings>=2.10,<3",
+  "httpx>=0.28,<1",
+  "itsdangerous>=2.2,<3",
+  "langgraph>=0.6,<2",
+]
+
+[tool.vercel]
+entrypoint = "backend.app.main:app"
