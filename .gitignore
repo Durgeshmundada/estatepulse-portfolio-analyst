@@ -15,5 +15,8 @@ frontend/vite.config.d.ts
 playwright-report/
 test-results/
 backend/evals/reports/*.json
+artifacts/*.mp4
+artifacts/*.png
+artifacts/walkthrough_work/
 .tmp/
 .DS_Store
