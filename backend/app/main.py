@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from .agent import run_agent
@@ -154,6 +154,21 @@ def get_conversation(conversation_id: str, user: User = Depends(as_user), db: Se
     messages = db.scalars(select(Message).where(Message.conversation_id == conversation.id).order_by(Message.created_at, Message.id)).all()
     pending = db.scalar(select(ChangeRequest).where(ChangeRequest.conversation_id == conversation.id, ChangeRequest.status == "PENDING").order_by(ChangeRequest.created_at.desc()))
     return {**conversation_dto(conversation), "messages": [message_dto(m) for m in messages], "context": conversation.context_json, "pending_change": pending.id if pending else None}
+
+
+@app.delete("/api/conversations/{conversation_id}", status_code=204)
+def delete_conversation(
+    conversation_id: str,
+    user: User = Depends(as_user),
+    db: Session = Depends(get_db),
+):
+    conversation = owned_conversation(db, conversation_id, user.id)
+    db.execute(delete(AttentionFlag).where(AttentionFlag.conversation_id == conversation.id))
+    db.execute(delete(AgentEvent).where(AgentEvent.conversation_id == conversation.id))
+    db.execute(delete(ChangeRequest).where(ChangeRequest.conversation_id == conversation.id))
+    db.execute(delete(Message).where(Message.conversation_id == conversation.id))
+    db.delete(conversation)
+    db.commit()
 
 
 @app.post("/api/conversations/{conversation_id}/messages")

@@ -28,3 +28,18 @@ def test_conversation_and_grounded_summary():
         assert "₹29.70 Cr" in body["message"]["text"]
         assert body["message"]["cards"][0]["type"] == "summary"
 
+
+def test_conversation_delete_is_owner_scoped():
+    with TestClient(app) as client:
+        client.post("/api/session", json={"user_id": "U001", "access_code": "demo"})
+        conversation = client.post("/api/conversations", json={}).json()
+        client.post(
+            f"/api/conversations/{conversation['id']}/messages",
+            json={"request_id": "delete-test-message", "text": "Hello"},
+        )
+        client.post("/api/session", json={"user_id": "U002", "access_code": "demo"})
+        foreign_delete = client.delete(f"/api/conversations/{conversation['id']}")
+        assert foreign_delete.status_code == 404
+        client.post("/api/session", json={"user_id": "U001", "access_code": "demo"})
+        assert client.delete(f"/api/conversations/{conversation['id']}").status_code == 204
+        assert client.get(f"/api/conversations/{conversation['id']}").status_code == 404

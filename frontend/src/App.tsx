@@ -13,7 +13,7 @@ export default function App() {
   if (loading) return <div className="splash"><div className="brand-mark">A</div><span>Preparing your portfolio…</span></div>
   return <Routes>
     <Route path="/login" element={user ? <Navigate to="/chat" /> : <LoginPage onLogin={setUser} />} />
-    <Route path="/chat" element={user ? <ChatPage user={user} onLogout={() => { api.signOut().finally(() => setUser(null)) }} /> : <Navigate to="/login" />} />
+    <Route path="/chat" element={user ? <ChatPage user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />} />
     <Route path="/admin" element={<AdminPage />} />
     <Route path="*" element={<Navigate to={user ? '/chat' : '/login'} />} />
   </Routes>

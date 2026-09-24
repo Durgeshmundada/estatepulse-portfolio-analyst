@@ -27,6 +27,7 @@ export const api = {
   conversations: () => request<{ items: Conversation[] }>('/api/conversations'),
   createConversation: () => request<Conversation>('/api/conversations', { method: 'POST', body: '{}' }),
   conversation: (id: string) => request<Conversation & { messages: Message[]; context: Record<string, unknown>; pending_change: string | null }>(`/api/conversations/${id}`),
+  deleteConversation: (id: string) => request<void>(`/api/conversations/${id}`, { method: 'DELETE' }),
   send: (id: string, text: string, request_id = crypto.randomUUID()) => request<{ message: Message; server_ms: number }>(`/api/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ text, request_id }) }),
   confirm: (id: string) => request<{ message: Message }>(`/api/changes/${id}/confirm`, { method: 'POST', body: JSON.stringify({ request_id: crypto.randomUUID() }) }),
   cancel: (id: string) => request<{ status: string }>(`/api/changes/${id}/cancel`, { method: 'POST', body: '{}' }),
