@@ -16,4 +16,10 @@ describe('ResultCard', () => {
     expect(screen.getByText('Hypothetical')).toBeInTheDocument()
     expect(screen.getByText(/actual portfolio has not been modified/i)).toBeInTheDocument()
   })
+
+  it('shows the ranking metric beside each property', () => {
+    render(<ResultCard card={{ type: 'properties', title: 'Performance ranking', variant: 'ranking', items: [{ id: 'P003', location: 'Lower Parel, Mumbai', type: 'Retail', area: '3,100 sq ft', value: '₹9.20 Cr', rent: '₹60.00 lakh', metric: '6.52% gross yield' }] }} />)
+    expect(screen.getByText('PERFORMANCE RANKING')).toBeInTheDocument()
+    expect(screen.getByText('6.52% gross yield')).toBeInTheDocument()
+  })
 })

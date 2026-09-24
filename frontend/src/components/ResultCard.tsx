@@ -8,7 +8,8 @@ export default function ResultCard({ card, onConfirm, onCancel, readonly = false
   }
   if (card.type === 'properties') {
     const items = card.items as Array<Record<string, string>>
-    return <section className="result-card"><header><div><span className="card-kicker">MATCHES</span><h3>{card.title}</h3></div><span className="count-chip">{items.length}</span></header><div className="property-list">{items.map(item => <article key={item.id}><div className="property-icon"><SquareStack size={18} /></div><div className="property-main"><strong>{item.location}</strong><span><MapPin size={12} /> {item.type} · {item.area}</span></div><div className="property-numbers"><strong>{item.value}</strong><span>{item.rent} rent</span></div></article>)}</div></section>
+    const ranking = card.variant === 'ranking'
+    return <section className="result-card"><header><div><span className="card-kicker">{ranking ? 'PERFORMANCE RANKING' : 'MATCHES'}</span><h3>{card.title}</h3></div><span className="count-chip">{items.length}</span></header><div className="property-list">{items.map((item, index) => <article key={item.id}>{ranking ? <div className="rank-number">{index + 1}</div> : <div className="property-icon"><SquareStack size={18} /></div>}<div className="property-main"><strong>{item.location}</strong><span><MapPin size={12} /> {item.type} · {item.area}</span>{item.metric && <em>{item.metric}</em>}</div><div className="property-numbers"><strong>{item.value}</strong><span>{item.rent} rent</span></div></article>)}</div></section>
   }
   if (card.type === 'comparison') {
     const groups = card.groups as Array<Record<string, string | number>>

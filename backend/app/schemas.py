@@ -29,7 +29,7 @@ class AgentPlan(StrictModel):
     intent: Literal[
         "summary", "list", "exposure", "highest_rent", "highest_yield", "compare",
         "scenario_exclude", "scenario_value_change", "scenario_reset", "propose_add",
-        "propose_update", "unsupported", "human_help"
+        "propose_update", "greeting", "thanks", "help", "unsupported", "human_help"
     ]
     property_type: str | None = None
     second_property_type: str | None = None
@@ -54,4 +54,3 @@ class AgentState(StrictModel):
     cards: list[dict[str, Any]] = Field(default_factory=list)
     context_update: dict[str, Any] = Field(default_factory=dict)
     attention: str | None = None
-

@@ -174,7 +174,8 @@ async def send_message(payload: MessageCreate, conversation_id: str, user: User 
     history = [{"role": m.role.lower(), "text": m.text} for m in reversed(history_rows)]
     try:
         result = await run_agent({
-            "user_id": user.id, "conversation_id": conversation.id, "request_id": payload.request_id,
+            "user_id": user.id, "user_name": user.name,
+            "conversation_id": conversation.id, "request_id": payload.request_id,
             "text": payload.text, "history": history, "context": conversation.context_json or {},
             "properties": properties, "portfolio_version": user.portfolio_version, "events": [],
         })
