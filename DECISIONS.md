@@ -16,6 +16,10 @@ Use SQLAlchemy with SQLite for the demo. Exact ownership filters, constraints, t
 
 The authoritative source is twelve structured records. Embedding those rows would make exact aggregation harder without adding useful knowledge. Add RAG only if sourced documents become a real requirement.
 
+## Incremental response streaming
+
+Use newline-delimited JSON so the API can emit progress, text deltas, and a final persisted message with cards over one response. Keep the original JSON endpoint for compatibility. The final event is the database-backed source of truth, so streaming does not weaken retries or conversation history.
+
 ## Snapshot scenarios
 
 Represent scenarios as ordered operations over copied portfolio data stored in conversation context. This creates a clear boundary between actual and hypothetical state. Large portfolios would store versioned operations and execute them through indexed queries.
@@ -47,4 +51,3 @@ Use Gemini 2.5 Flash through its structured JSON REST interface because the user
 ## Render single-service deployment
 
 Build React into the FastAPI image and mount a persistent Render disk for SQLite. One service simplifies reviewer access. The deployment runs one worker; PostgreSQL is required before horizontal scaling.
-

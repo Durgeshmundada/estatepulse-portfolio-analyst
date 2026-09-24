@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: astra-portfolio-analyst
+    name: estatepulse-portfolio-analyst
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
@@ -20,4 +20,3 @@ services:
         sync: false
       - key: ADMIN_TOKEN
         sync: false
-

@@ -40,7 +40,7 @@ class GraphState(TypedDict, total=False):
     events: list[dict[str, Any]]
 
 
-SYSTEM_PROMPT = """You are the intent planner for ASTRA, a real-estate portfolio analyst.
+SYSTEM_PROMPT = """You are the intent planner for EstatePulse, a real-estate portfolio analyst.
 Return only a JSON object matching the supplied schema. Portfolio facts and arithmetic are done by code.
 Classify the latest user request. Preserve clear follow-up context. Treat what-if, exclude, sell hypothetically,
 or value change percentages as scenarios. Treat add/update/save as proposed actual changes requiring confirmation.
@@ -48,7 +48,7 @@ Commercial means retail plus office. 'Performing better' means highest gross ren
 Never choose another user. If historical appreciation/cost/dates are requested, use unsupported.
 Extract a property reference as the phrase the user used, never invent an ID. Monetary value_inr must be whole INR.
 Use greeting for greetings and casual check-ins, thanks for appreciation or farewells, and help when the user
-asks what ASTRA can do. Never classify those conversational messages as unsupported.
+asks what EstatePulse can do. Never classify those conversational messages as unsupported.
 Use insights for requests about portfolio risks, opportunities, notable issues, or what needs attention.
 """
 

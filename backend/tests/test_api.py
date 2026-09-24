@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -27,6 +29,26 @@ def test_conversation_and_grounded_summary():
         body = response.json()
         assert "₹29.70 Cr" in body["message"]["text"]
         assert body["message"]["cards"][0]["type"] == "summary"
+
+
+def test_conversation_response_stream_is_incremental_and_persisted():
+    with TestClient(app) as client:
+        client.post("/api/session", json={"user_id": "U001", "access_code": "demo"})
+        conversation = client.post("/api/conversations", json={}).json()
+        with client.stream(
+            "POST",
+            f"/api/conversations/{conversation['id']}/messages/stream",
+            json={"request_id": "test-stream-request", "text": "What is my total portfolio value?"},
+        ) as response:
+            events = [json.loads(line) for line in response.iter_lines() if line]
+        assert response.status_code == 200
+        assert events[0]["type"] == "status"
+        assert any(event["type"] == "delta" for event in events)
+        completed = events[-1]
+        assert completed["type"] == "done"
+        assert "₹29.70 Cr" in completed["message"]["text"]
+        stored = client.get(f"/api/conversations/{conversation['id']}").json()["messages"]
+        assert stored[-1]["text"] == completed["message"]["text"]
 
 
 def test_conversation_delete_is_owner_scoped():

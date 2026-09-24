@@ -1,5 +1,5 @@
 [project]
-name = "astra-portfolio-analyst"
+name = "estatepulse-portfolio-analyst"
 version = "0.1.0"
 description = "Conversational real-estate portfolio analyst demo"
 requires-python = ">=3.13,<3.14"

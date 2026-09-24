@@ -34,7 +34,7 @@ wheels = [
 ]
 
 [[package]]
-name = "astra-portfolio-analyst"
+name = "estatepulse-portfolio-analyst"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -16,7 +16,7 @@ export default function LoginPage({ onLogin }: { onLogin: (user: User) => void }
   }
   return <main className="login-shell">
     <section className="login-story">
-      <div className="wordmark light"><span className="brand-mark small">A</span> ASTRA</div>
+      <div className="wordmark light"><span className="brand-mark small">E</span> EstatePulse</div>
       <div className="story-copy"><p className="eyebrow">REAL ESTATE INTELLIGENCE</p><h1>Your portfolio,<br /><em>in conversation.</em></h1><p>Ask better questions. Model what-if scenarios. Make every property decision with clarity.</p></div>
       <div className="feature-row"><span><MessageCircleMore /> Natural conversations</span><span><ChartNoAxesCombined /> Exact analytics</span><span><ShieldCheck /> Safe scenarios</span></div>
       <div className="architectural-art" aria-hidden="true"><div /><div /><div /></div>
@@ -25,7 +25,7 @@ export default function LoginPage({ onLogin }: { onLogin: (user: User) => void }
       <div className="login-card">
         <div className="login-icon"><Building2 /></div>
         <p className="eyebrow green">DEMO PORTFOLIO</p>
-        <h2>Welcome to ASTRA</h2>
+        <h2>Welcome to EstatePulse</h2>
         <p className="muted">Choose a synthetic portfolio to explore the analyst.</p>
         <label>Portfolio owner<select value={selected} onChange={e => setSelected(e.target.value)}>{users.map(user => <option key={user.id} value={user.id}>{user.name} · {user.city}</option>)}</select></label>
         <label>Access code<input value={code} onChange={e => setCode(e.target.value)} type="password" placeholder="Enter demo code" onKeyDown={e => e.key === 'Enter' && submit()} /></label>

@@ -1,6 +1,6 @@
-# ASTRA — AI Real Estate Portfolio Analyst
+# EstatePulse — AI Real Estate Portfolio Analyst
 
-ASTRA is a modern conversational portfolio analyst built for the supplied engineering assignment. It answers questions from stored property data, performs deterministic calculations, carries context across turns, models temporary what-if scenarios, and prepares reviewed property changes. A separate business dashboard exposes conversations, agent activity, latency, failures, and attention flags.
+EstatePulse is a modern conversational portfolio analyst built for the supplied engineering assignment. It answers questions from stored property data, performs deterministic calculations, carries context across turns, models temporary what-if scenarios, and prepares reviewed property changes. A separate business dashboard exposes conversations, agent activity, latency, failures, and attention flags.
 
 The included data is synthetic. The UI simulates a polished messaging experience without integrating WhatsApp.
 
@@ -12,6 +12,7 @@ The included data is synthetic. The UI simulates a polished messaging experience
 - Add/update proposals with explicit confirmation before persistence
 - Four isolated demo personas backed by the supplied dataset
 - Persistent conversations and structured result cards
+- Incremental response streaming with a durable final message
 - Gemini intent planning with a deterministic fallback when no key is configured
 - Millisecond local routing for common questions, with pooled Gemini connections for nuanced requests
 - Business dashboard with messages, agent activity, latency, failures, and attention flags
@@ -67,7 +68,7 @@ GEMINI_API_KEY=your-key-here
 GEMINI_MODEL=gemini-2.5-flash
 ```
 
-Never commit `.env`. Without a key, ASTRA uses a deterministic intent fallback so the UI and calculations remain demonstrable; `/health/ready` reports the active mode.
+Never commit `.env`. Without a key, EstatePulse uses a deterministic intent fallback so the UI and calculations remain demonstrable; `/health/ready` reports the active mode.
 
 ## Verification
 
@@ -97,7 +98,7 @@ For higher concurrency, migrate the SQLAlchemy models to PostgreSQL, add Alembic
 - Rental yield is gross annual rent divided by current value; it excludes costs, tax, and financing.
 - `Commercial` means Retail plus Office. `Commercial Office` and `Office` normalize to Office while retaining raw labels.
 - Zero rent is valid for vacant and self-occupied properties. Missing rent stays unknown.
-- Every supplied purchase price is blank and no historical dates exist, so ASTRA refuses appreciation, CAGR, and time-series claims.
+- Every supplied purchase price is blank and no historical dates exist, so EstatePulse refuses appreciation, CAGR, and time-series claims.
 - Location parsing uses a transparent alias map. Unknown cities remain unknown.
 - Demo users are selectable synthetic personas, not production authentication.
 

@@ -1,3 +1,6 @@
+import asyncio
+import json
+import re
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from time import perf_counter
@@ -6,7 +9,7 @@ from uuid import uuid4
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import delete, func, select
@@ -30,10 +33,10 @@ from .schemas import ConfirmRequest, ConversationCreate, MessageCreate, SessionC
 from .seed import seed
 
 settings = get_settings()
-serializer = URLSafeTimedSerializer(settings.session_secret, salt="astra-session")
+serializer = URLSafeTimedSerializer(settings.session_secret, salt="estatepulse-session")
 
 
-def as_user(token: str | None = Cookie(default=None, alias="astra_session"), db: Session = Depends(get_db)) -> User:
+def as_user(token: str | None = Cookie(default=None, alias="estatepulse_session"), db: Session = Depends(get_db)) -> User:
     if not token:
         raise HTTPException(401, "Select a demo portfolio first")
     try:
@@ -80,7 +83,7 @@ async def lifespan(_: FastAPI):
     await close_agent_client()
 
 
-app = FastAPI(title="ASTRA Portfolio Analyst", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="EstatePulse Portfolio Analyst", version="0.2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_origin, "http://127.0.0.1:5173"],
@@ -114,7 +117,7 @@ def create_session(payload: SessionCreate, response: Response, db: Session = Dep
     user = db.get(User, payload.user_id)
     if not user:
         raise HTTPException(404, "Demo user not found")
-    response.set_cookie("astra_session", serializer.dumps(user.id), httponly=True, samesite="lax", secure=settings.app_env == "production", max_age=86_400)
+    response.set_cookie("estatepulse_session", serializer.dumps(user.id), httponly=True, samesite="lax", secure=settings.app_env == "production", max_age=86_400)
     return {"user": {"id": user.id, "name": user.name, "city": user.city, "preferences": user.preferences}}
 
 
@@ -125,7 +128,7 @@ def get_session(user: User = Depends(as_user)):
 
 @app.delete("/api/session", status_code=204)
 def delete_session(response: Response):
-    response.delete_cookie("astra_session")
+    response.delete_cookie("estatepulse_session")
 
 
 @app.get("/api/portfolio")
@@ -172,11 +175,21 @@ def delete_conversation(
     db.commit()
 
 
-@app.post("/api/conversations/{conversation_id}/messages")
-async def send_message(payload: MessageCreate, conversation_id: str, user: User = Depends(as_user), db: Session = Depends(get_db)):
+async def process_message(
+    payload: MessageCreate,
+    conversation_id: str,
+    user: User,
+    db: Session,
+) -> dict[str, Any]:
     started = perf_counter()
     conversation = owned_conversation(db, conversation_id, user.id)
-    existing = db.scalar(select(Message).where(Message.request_id == payload.request_id, Message.role == "ASSISTANT"))
+    existing = db.scalar(
+        select(Message).where(
+            Message.conversation_id == conversation.id,
+            Message.request_id == payload.request_id,
+            Message.role == "ASSISTANT",
+        )
+    )
     if existing:
         return {"request_id": payload.request_id, "conversation_id": conversation.id, "message": message_dto(existing), "server_ms": 0, "replayed": True}
     user_message = Message(id=str(uuid4()), conversation_id=conversation.id, role="USER", request_id=payload.request_id, text=payload.text, cards_json=[])
@@ -224,6 +237,56 @@ async def send_message(payload: MessageCreate, conversation_id: str, user: User 
     db.commit()
     elapsed = int((perf_counter() - started) * 1000)
     return {"request_id": payload.request_id, "conversation_id": conversation.id, "message": message_dto(assistant), "server_ms": elapsed, "replayed": False}
+
+
+@app.post("/api/conversations/{conversation_id}/messages")
+async def send_message(
+    payload: MessageCreate,
+    conversation_id: str,
+    user: User = Depends(as_user),
+    db: Session = Depends(get_db),
+):
+    return await process_message(payload, conversation_id, user, db)
+
+
+def stream_line(event: str, **data: Any) -> str:
+    return json.dumps({"type": event, **data}, ensure_ascii=False) + "\n"
+
+
+def response_chunks(text: str, words_per_chunk: int = 4) -> list[str]:
+    words = re.findall(r"\S+\s*", text)
+    return ["".join(words[index:index + words_per_chunk]) for index in range(0, len(words), words_per_chunk)]
+
+
+@app.post("/api/conversations/{conversation_id}/messages/stream")
+async def stream_message(
+    payload: MessageCreate,
+    conversation_id: str,
+    user: User = Depends(as_user),
+    db: Session = Depends(get_db),
+):
+    owned_conversation(db, conversation_id, user.id)
+
+    async def generate():
+        yield stream_line("status", text="Reading your portfolio…")
+        try:
+            result = await process_message(payload, conversation_id, user, db)
+        except HTTPException as exc:
+            yield stream_line("error", detail=str(exc.detail))
+            return
+        except Exception:
+            yield stream_line("error", detail="Analysis temporarily unavailable")
+            return
+        for chunk in response_chunks(result["message"]["text"]):
+            yield stream_line("delta", text=chunk)
+            await asyncio.sleep(0.012)
+        yield stream_line("done", **result)
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/changes/{change_id}/confirm")

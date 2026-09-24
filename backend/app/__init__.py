@@ -1,2 +1,1 @@
-"""ASTRA backend package."""
-
+"""EstatePulse backend package."""
