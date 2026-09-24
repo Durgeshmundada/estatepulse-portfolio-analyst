@@ -1,4 +1,5 @@
 from app.agent import _fast_plan, _heuristic_plan, execute_node
+from app.schemas import AgentPlan
 
 
 def properties():
@@ -67,3 +68,43 @@ def test_insights_surface_concentration_and_yield():
     assert "Retail is your largest exposure" in result["reply_text"]
     assert "strongest gross yield" in result["reply_text"]
     assert result["cards"][0]["title"] == "Portfolio health snapshot"
+
+
+def test_value_threshold_filters_properties_exactly():
+    plan = _heuristic_plan("Which of my properties are above ₹10 crore?", {})
+    assert plan.intent == "list"
+    assert plan.value_inr == 100_000_000
+    assert plan.value_comparison == "gt"
+    result = execute_node(state(plan))
+    assert [item["id"] for item in result["cards"][0]["items"]] == ["P001"]
+
+
+def test_scenario_resolves_a_natural_property_reference():
+    plan = AgentPlan(intent="scenario_exclude", property_ref="my Bandra property")
+    result = execute_node(state(plan))
+    assert "₹9.20 Cr" in result["reply_text"]
+    assert result["context_update"]["scenario"]["operations"][0]["property_ids"] == ["P001"]
+
+
+def test_existing_ownership_language_is_analysis_not_a_write():
+    plan = _heuristic_plan("What portion of everything I own is tied up in shops?", {})
+    assert plan.intent == "exposure"
+    assert plan.property_type == "retail"
+
+
+def test_update_resolves_category_words_outside_the_location():
+    plan = AgentPlan(
+        intent="propose_update",
+        property_type="retail",
+        property_ref="Bandra retail property",
+        value_inr=125_000_000,
+    )
+    result = execute_node(state(plan))
+    assert result["change_request"]["property_id"] == "P001"
+
+
+def test_natural_category_synonyms_produce_a_comparison():
+    plan = _heuristic_plan("Stack my shops against my workspaces", {})
+    assert plan.intent == "compare"
+    assert plan.property_type == "retail"
+    assert plan.second_property_type == "office"

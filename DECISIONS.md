@@ -36,9 +36,9 @@ Persist the full transcript while supplying recent turns and structured focus to
 
 Store model and deterministic execution events with request IDs, duration, safe inputs/outputs, and status. This directly powers the business dashboard without enterprise tracing infrastructure.
 
-## Plain JSON responses
+## Dual response contract
 
-Return validated complete responses rather than stream partial model text. The user receives an immediate loading state, while persistence, cards, and confirmation receipts remain simple and recoverable.
+Keep the validated JSON endpoint for compatibility and add NDJSON streaming for the chat interface. Streaming sends progress and text deltas, then finishes with the same persisted message and cards returned by the JSON endpoint.
 
 ## React/Vite frontend
 

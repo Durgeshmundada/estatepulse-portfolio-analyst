@@ -86,6 +86,18 @@ npm run build
 
 Golden seed expectations include Rahul's ₹29.70 Cr portfolio, ₹1.32 Cr annual rent, and 71.38% retail value exposure. Tests cover money parsing, normalization, portfolio arithmetic, scenario immutability, session-scoped reads, grounded chat output, and confirmation-before-write behavior.
 
+## LLM evaluations and guardrails
+
+The eval harness uses the supplied sample requests plus quality, grounding, tenant-isolation, prompt-injection, scenario, and write-safety cases. Offline mode is deterministic and runs in CI without API cost. Live mode exercises normal Gemini routing and records latency and token usage:
+
+```powershell
+cd backend
+uv run python -m evals.run --mode offline
+uv run python -m evals.run --mode live --max-p95-ms 12000
+```
+
+Both commands write a JSON report to `evals/reports/latest.json` and return a failing exit code when the overall or guardrail thresholds are missed. See [backend/evals/README.md](backend/evals/README.md) for case assertions and command options.
+
 ## Deployment
 
 `render.yaml` defines one Docker web service with a persistent disk at `/var/data`. Configure `GEMINI_API_KEY`, `DEMO_ACCESS_CODE`, `ADMIN_TOKEN`, `FRONTEND_ORIGIN`, and `SESSION_SECRET` in Render. The image builds the frontend, serves it from FastAPI, seeds missing records idempotently, and runs one worker because SQLite uses local storage.

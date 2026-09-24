@@ -36,6 +36,7 @@ class AgentPlan(StrictModel):
     location: str | None = None
     property_ref: str | None = None
     value_inr: int | None = None
+    value_comparison: Literal["gt", "gte", "lt", "lte"] | None = None
     value_change_pct: float | None = None
     area_sqft: int | None = None
     sub_type: str | None = None
