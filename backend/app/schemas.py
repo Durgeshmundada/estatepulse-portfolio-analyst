@@ -27,7 +27,7 @@ class ConfirmRequest(StrictModel):
 
 class AgentPlan(StrictModel):
     intent: Literal[
-        "summary", "list", "exposure", "highest_rent", "highest_yield", "compare",
+        "summary", "insights", "list", "exposure", "highest_rent", "highest_yield", "compare",
         "scenario_exclude", "scenario_value_change", "scenario_reset", "propose_add",
         "propose_update", "greeting", "thanks", "help", "unsupported", "human_help"
     ]

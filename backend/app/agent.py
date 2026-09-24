@@ -49,6 +49,7 @@ Never choose another user. If historical appreciation/cost/dates are requested, 
 Extract a property reference as the phrase the user used, never invent an ID. Monetary value_inr must be whole INR.
 Use greeting for greetings and casual check-ins, thanks for appreciation or farewells, and help when the user
 asks what ASTRA can do. Never classify those conversational messages as unsupported.
+Use insights for requests about portfolio risks, opportunities, notable issues, or what needs attention.
 """
 
 
@@ -69,6 +70,26 @@ PLAN_SCHEMA = {
     "required": list(AgentPlan.model_fields),
     "additionalProperties": False,
 }
+
+
+_gemini_client: httpx.AsyncClient | None = None
+
+
+def _client() -> httpx.AsyncClient:
+    """Reuse connections so repeated chat turns avoid a fresh TLS handshake."""
+    global _gemini_client
+    if _gemini_client is None or _gemini_client.is_closed:
+        timeout = httpx.Timeout(12, connect=4)
+        limits = httpx.Limits(max_connections=20, max_keepalive_connections=10)
+        _gemini_client = httpx.AsyncClient(timeout=timeout, limits=limits)
+    return _gemini_client
+
+
+async def close_agent_client() -> None:
+    global _gemini_client
+    if _gemini_client is not None and not _gemini_client.is_closed:
+        await _gemini_client.aclose()
+    _gemini_client = None
 
 
 def _extract_money(text: str) -> int | None:
@@ -116,6 +137,8 @@ def _heuristic_plan(text: str, context: dict[str, Any]) -> AgentPlan:
         return AgentPlan(intent="propose_update", property_type=property_type, location=location, property_ref=location, value_inr=money)
     if any(x in lower for x in ["appreciat", "since purchase", "historical", "last five years", "cagr", "irr"]):
         return AgentPlan(intent="unsupported", reason="Historical purchase values and dates are unavailable.")
+    if any(x in lower for x in ["pay attention", "insight", "risk", "opportunit", "portfolio health", "recommend"]):
+        return AgentPlan(intent="insights")
     if "highest" in lower or "most rent" in lower or "performing" in lower or "better" in lower:
         return AgentPlan(intent="highest_yield" if "yield" in lower or "perform" in lower else "highest_rent", property_type=property_type)
     if "compare" in lower or "versus" in lower or " vs " in lower:
@@ -128,16 +151,68 @@ def _heuristic_plan(text: str, context: dict[str, Any]) -> AgentPlan:
     return AgentPlan(intent="summary")
 
 
+def _fast_plan(text: str, context: dict[str, Any]) -> AgentPlan | None:
+    """Handle clear, frequent requests locally and leave ambiguous language to Gemini."""
+    lower = " ".join(text.casefold().strip().split())
+    plan = _heuristic_plan(text, context)
+    conversational = {"greeting", "thanks", "help", "human_help", "scenario_reset"}
+    if plan.intent in conversational:
+        return plan
+    if plan.intent == "unsupported" and any(
+        term in lower for term in ["historical", "appreciat", "cagr", "irr", "since purchase"]
+    ):
+        return plan
+    if plan.intent in {"highest_rent", "highest_yield"} and any(
+        term in lower for term in ["highest", "most rent", "best yield", "rental yield"]
+    ):
+        return plan
+    if plan.intent == "compare" and plan.property_type and plan.second_property_type:
+        return plan
+    if plan.intent == "insights":
+        return plan
+    if plan.intent == "exposure" and (plan.property_type or plan.location):
+        return plan
+    if plan.intent == "list" and any(
+        term in lower for term in ["show", "which properties", "list", "tell me about"]
+    ):
+        return plan
+    if plan.intent == "summary" and any(
+        term in lower
+        for term in [
+            "portfolio look like",
+            "portfolio summary",
+            "portfolio overview",
+            "total portfolio value",
+            "my portfolio value",
+        ]
+    ):
+        return plan
+    return None
+
+
 async def _gemini_plan(state: GraphState) -> tuple[AgentPlan, dict[str, Any]]:
     settings = get_settings()
     started = time.perf_counter()
+    fast_plan = _fast_plan(state["text"], state.get("context", {}))
+    if fast_plan is not None:
+        return fast_plan, {
+            "kind": "MODEL",
+            "name": "local_fast_path",
+            "duration_ms": int((time.perf_counter() - started) * 1000),
+            "success": True,
+            "input": {"text": state["text"]},
+            "output": fast_plan.model_dump(),
+        }
     if settings.app_env == "test" or not settings.gemini_api_key:
         plan = _heuristic_plan(state["text"], state.get("context", {}))
         return plan, {"kind": "MODEL", "name": "local_intent_fallback", "duration_ms": int((time.perf_counter() - started) * 1000), "success": True, "input": {"text": state["text"]}, "output": plan.model_dump()}
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent"
+    recent_history = state.get("history", [])
+    if recent_history and recent_history[-1].get("role") == "user":
+        recent_history = recent_history[:-1]
     context = {
         "conversation_context": state.get("context", {}),
-        "recent_history": state.get("history", [])[-6:],
+        "recent_history": recent_history[-4:],
         "available_properties": [
             {"id": p["id"], "type": p["property_type"], "location": p["location"]}
             for p in state["properties"][:50]
@@ -149,15 +224,16 @@ async def _gemini_plan(state: GraphState) -> tuple[AgentPlan, dict[str, Any]]:
         "contents": [{"role": "user", "parts": [{"text": json.dumps(context)}]}],
         "generationConfig": {
             "temperature": 0,
-            "maxOutputTokens": 800,
+            "maxOutputTokens": 500,
             "responseMimeType": "application/json",
             "responseJsonSchema": PLAN_SCHEMA,
         },
     }
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(url, params={"key": settings.gemini_api_key}, json=payload)
-            response.raise_for_status()
+        response = await _client().post(
+            url, params={"key": settings.gemini_api_key}, json=payload
+        )
+        response.raise_for_status()
         raw = response.json()["candidates"][0]["content"]["parts"][0]["text"]
         plan = AgentPlan.model_validate_json(raw)
         event = {"kind": "MODEL", "name": settings.gemini_model, "duration_ms": int((time.perf_counter() - started) * 1000), "success": True, "input": {"text": state["text"]}, "output": plan.model_dump()}
@@ -247,11 +323,62 @@ def execute_node(state: GraphState) -> dict[str, Any]:
         data = metrics(current)
         label = "Hypothetical portfolio" if active_scenario else "Actual portfolio"
         cards = [summary_card(data, label)]
-        text = f"Your {label.lower()} is worth {format_inr(data['owned_value_inr'])} across {data['property_count']} properties, with {format_inr(data['annual_rent_inr'])} in known annual rent."
+        rent_label = "annual rent" if data["rent_complete"] else "known annual rent"
+        yield_detail = (
+            f" That is a {data['rental_yield_pct']:.2f}% gross rental yield."
+            if data["rental_yield_pct"] is not None
+            else " Gross yield is unavailable because some rent data is missing."
+        )
+        text = (
+            f"Your {label.lower()} is worth {format_inr(data['owned_value_inr'])} across "
+            f"{data['property_count']} properties and generates "
+            f"{format_inr(data['annual_rent_inr'])} in {rent_label}.{yield_detail}"
+        )
+    elif plan.intent == "insights":
+        data = metrics(current)
+        signals: list[str] = []
+        if data["by_type"] and data["owned_value_inr"]:
+            leading_type, leading_value = max(data["by_type"].items(), key=lambda item: item[1])
+            leading_share = leading_value / data["owned_value_inr"] * 100
+            signals.append(
+                f"{leading_type.title()} is your largest exposure at {leading_share:.2f}% "
+                f"({format_inr(leading_value)})."
+            )
+        vacant = [p for p in current if p.get("occupancy_status") == "VACANT"]
+        if vacant:
+            vacancy = metrics(vacant)
+            locations = ", ".join(p["location"] for p in vacant[:2])
+            signals.append(
+                f"{len(vacant)} {'property is' if len(vacant) == 1 else 'properties are'} vacant "
+                f"({locations}), representing {format_inr(vacancy['owned_value_inr'])} of value."
+            )
+        else:
+            signals.append("No active property is currently marked vacant.")
+        ranked = rank(current, "rental_yield")
+        if ranked:
+            leader = ranked[0]
+            signals.append(
+                f"Your strongest gross yield is {leader['location']} ({leader['id']}) at "
+                f"{leader['metric_value']:.2f}%."
+            )
+        text = "Here are the main signals in your portfolio:\n• " + "\n• ".join(signals)
+        cards = [summary_card(data, "Portfolio health snapshot")]
+        if vacant:
+            cards.append(_property_card(vacant, "Vacant properties to review"))
     elif plan.intent == "list":
         items = filter_properties(current, plan.property_type, plan.location)
-        cards = [_property_card(items, "Matching properties")]
-        text = f"I found {len(items)} matching {'hypothetical ' if active_scenario else ''}properties."
+        if items:
+            cards = [_property_card(items, "Matching properties")]
+            noun = "property" if len(items) == 1 else "properties"
+            text = (
+                f"I found {len(items)} matching "
+                f"{'hypothetical ' if active_scenario else ''}{noun}."
+            )
+        else:
+            filters = " and ".join(
+                value for value in [plan.property_type, plan.location] if value
+            )
+            text = f"I couldn't find any active properties matching {filters or 'that request'}."
         context["last_property_ids"] = [p["id"] for p in items]
         if plan.property_type:
             context["last_type"] = plan.property_type
@@ -261,11 +388,16 @@ def execute_node(state: GraphState) -> dict[str, Any]:
         denominator = total_metrics["owned_value_inr"]
         share = group_metrics["owned_value_inr"] / denominator * 100 if denominator else None
         label = plan.property_type or plan.location or "Selected"
-        text = f"{label.title()} represents {format_inr(group_metrics['owned_value_inr'])}, or {share:.2f}% of your {'hypothetical ' if active_scenario else ''}portfolio value." if share is not None else "The exposure percentage is undefined because the portfolio value is zero."
-        cards = [{"type": "comparison", "title": f"{label.title()} exposure", "groups": [
-            {"label": label.title(), "value": format_inr(group_metrics["owned_value_inr"]), "share": round(share or 0, 2)},
-            {"label": "Rest of portfolio", "value": format_inr(denominator - group_metrics["owned_value_inr"]), "share": round(100 - (share or 0), 2)},
-        ]}]
+        if not group:
+            text = f"I couldn't find any active {label} properties in this portfolio."
+        elif share is None:
+            text = "The exposure percentage is undefined because the portfolio value is zero."
+        else:
+            text = f"{label.title()} represents {format_inr(group_metrics['owned_value_inr'])}, or {share:.2f}% of your {'hypothetical ' if active_scenario else ''}portfolio value."
+            cards = [{"type": "comparison", "title": f"{label.title()} exposure", "groups": [
+                {"label": label.title(), "value": format_inr(group_metrics["owned_value_inr"]), "share": round(share, 2)},
+                {"label": "Rest of portfolio", "value": format_inr(denominator - group_metrics["owned_value_inr"]), "share": round(100 - share, 2)},
+            ]}]
         if plan.property_type:
             context["last_type"] = plan.property_type
     elif plan.intent in {"highest_rent", "highest_yield"}:
@@ -278,7 +410,7 @@ def execute_node(state: GraphState) -> dict[str, Any]:
             winner = ranked[0]
             if field == "rental_yield":
                 text = (
-                    f"{winner['id']} in {winner['location']} leads on gross rental yield at "
+                    f"{winner['location']} ({winner['id']}) has the highest gross rental yield at "
                     f"{winner['metric_value']:.2f}%, generating {format_inr(winner['annual_rent_inr'])} "
                     f"a year on a current value of {format_inr(winner['current_value_inr'])}."
                 )
@@ -293,7 +425,7 @@ def execute_node(state: GraphState) -> dict[str, Any]:
             else:
                 yield_pct = _gross_yield(winner)
                 text = (
-                    f"{winner['id']} in {winner['location']} generates the highest annual rent at "
+                    f"{winner['location']} ({winner['id']}) generates the highest annual rent at "
                     f"{format_inr(winner['annual_rent_inr'])}"
                     + (f", equivalent to a {yield_pct:.2f}% gross yield." if yield_pct is not None else ".")
                 )

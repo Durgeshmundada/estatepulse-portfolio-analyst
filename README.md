@@ -13,6 +13,7 @@ The included data is synthetic. The UI simulates a polished messaging experience
 - Four isolated demo personas backed by the supplied dataset
 - Persistent conversations and structured result cards
 - Gemini intent planning with a deterministic fallback when no key is configured
+- Millisecond local routing for common questions, with pooled Gemini connections for nuanced requests
 - Business dashboard with messages, agent activity, latency, failures, and attention flags
 - Responsive React interface for mobile and desktop
 
@@ -101,4 +102,3 @@ For higher concurrency, migrate the SQLAlchemy models to PostgreSQL, add Alembic
 - Demo users are selectable synthetic personas, not production authentication.
 
 See [SOUL.md](SOUL.md), [DECISIONS.md](DECISIONS.md), and [MASTER_IMPLEMENTATION_BLUEPRINT.md](MASTER_IMPLEMENTATION_BLUEPRINT.md) for the behavior contract, trade-offs, and detailed plan.
-

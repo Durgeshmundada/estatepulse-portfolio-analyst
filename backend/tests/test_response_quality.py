@@ -1,4 +1,4 @@
-from app.agent import _heuristic_plan, execute_node
+from app.agent import _fast_plan, _heuristic_plan, execute_node
 
 
 def properties():
@@ -30,3 +30,40 @@ def test_yield_ranking_explains_yield_and_absolute_rent():
     assert card["variant"] == "ranking"
     assert card["items"][0]["metric"] == "6.52% gross yield"
 
+
+def test_common_requests_use_the_local_fast_path():
+    examples = {
+        "Hey": "greeting",
+        "What does my portfolio look like?": "summary",
+        "Which property has the highest rental yield?": "highest_yield",
+        "How much of my portfolio is retail?": "exposure",
+        "Compare retail vs office": "compare",
+        "What should I pay attention to in this portfolio?": "insights",
+    }
+    for text, intent in examples.items():
+        plan = _fast_plan(text, {})
+        assert plan is not None
+        assert plan.intent == intent
+
+
+def test_ambiguous_requests_are_left_for_the_language_model():
+    assert _fast_plan("How does it look?", {}) is None
+
+
+def test_empty_filters_do_not_render_an_empty_card():
+    plan = _heuristic_plan("Show office properties", {})
+    result = execute_node(state(plan))
+    assert "couldn't find" in result["reply_text"]
+    assert result["cards"] == []
+
+
+def test_summary_explains_yield_in_plain_language():
+    result = execute_node(state(_heuristic_plan("portfolio summary", {})))
+    assert "gross rental yield" in result["reply_text"]
+
+
+def test_insights_surface_concentration_and_yield():
+    result = execute_node(state(_heuristic_plan("Give me portfolio insights", {})))
+    assert "Retail is your largest exposure" in result["reply_text"]
+    assert "strongest gross yield" in result["reply_text"]
+    assert result["cards"][0]["title"] == "Portfolio health snapshot"

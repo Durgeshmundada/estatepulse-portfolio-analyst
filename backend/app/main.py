@@ -12,7 +12,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from .agent import run_agent
+from .agent import close_agent_client, run_agent
 from .analytics import format_inr, metrics, normalize_city, property_dict, summary_card
 from .config import get_settings
 from .db import Base, engine, get_db
@@ -77,6 +77,7 @@ async def lifespan(_: FastAPI):
     if settings.seed_data_dir.exists():
         seed(settings.seed_data_dir)
     yield
+    await close_agent_client()
 
 
 app = FastAPI(title="ASTRA Portfolio Analyst", version="0.1.0", lifespan=lifespan)

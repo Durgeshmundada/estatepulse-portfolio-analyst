@@ -46,7 +46,7 @@ export default function ChatPage({ user, onLogout }: { user: User; onLogout: () 
       setMessages(old => [...old, optimistic])
       const result = await api.send(id, value)
       setMessages(old => [...old, result.message])
-      await Promise.all([refreshList(), api.portfolio().then(setPortfolio)])
+      void refreshList().catch(e => setError(e instanceof Error ? e.message : 'Unable to refresh conversations'))
     } catch (e) { setError(e instanceof Error ? e.message : 'Message failed') } finally { setBusy(false) }
   }
   const confirm = async (id: string) => { setBusy(true); try { const r = await api.confirm(id); setMessages(old => [...old.map(message => ({ ...message, cards: message.cards.map(card => card.type === 'change_review' && card.change_id === id ? { ...card, status: 'CONFIRMED' } : card) })), { id: crypto.randomUUID(), role: 'user', text: 'Confirm change', cards: [], created_at: new Date().toISOString() }, r.message]); setPortfolio(await api.portfolio()) } catch (e) { setError(e instanceof Error ? e.message : 'Confirmation failed') } finally { setBusy(false) } }
